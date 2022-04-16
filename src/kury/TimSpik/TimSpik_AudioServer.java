@@ -59,17 +59,9 @@ public class TimSpik_AudioServer {
                     if(VERBOSE){
                         System.out.println("Sending packet to" + address);
                     }
-
-                    if(pktName.contains("KURY")) {
-                        //if KURY string resend
-                        packet = new DatagramPacket(packet.getData(), packet.getLength(), address, port);
-                        soc.send(packet);
-                    } else if (pktName.contains("JOIN") || pktName.contains("QUIT")) {
-                        //If anything else send UDPT
-                        System.out.println("Sendind update");
-                        byte[] updateStr = "UPDT".getBytes(StandardCharsets.UTF_8);
-                        packet = new DatagramPacket(updateStr, updateStr.length, address, port);
-                    }
+                    //Relay packet to everyone
+                    packet = new DatagramPacket(packet.getData(), packet.getLength(), address, port);
+                    soc.send(packet);
                 }
             }
         }
