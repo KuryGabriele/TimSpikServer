@@ -7,7 +7,7 @@ public class AudioServerTester {
     public static void main(String[] args) {
         TimSpik_AudioServer as = new TimSpik_AudioServer(6981);
         try{
-            as.listen();
+            as.listen(args.length > 0);
         } catch(Exception ex){
             System.err.println(ex.getMessage());
         }

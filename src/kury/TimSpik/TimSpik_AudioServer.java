@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -12,15 +11,17 @@ import java.util.List;
 public class TimSpik_AudioServer {
     private int port;
     private DatagramSocket soc;
-    private static final boolean VERBOSE = false;
+    private boolean VERBOSE = false;
     private List<InetAddress> connectedUsers = new ArrayList<InetAddress>();
 
     public TimSpik_AudioServer(int port){
         this.port = port;
     }
 
-    public void listen() throws IOException {
+    public void listen(boolean verbose) throws IOException {
         soc = new DatagramSocket(port);
+
+        this.VERBOSE = verbose;
         System.out.println("Server started listening on port "  + port);
 
         while (true){
@@ -30,9 +31,13 @@ public class TimSpik_AudioServer {
             if(VERBOSE){
                 System.out.println("Waiting for packet...");
             }
+            
             soc.receive(packet);
-
             InetAddress addr = packet.getAddress();
+
+            if(VERBOSE){
+                System.out.println("Packet received from " + addr);
+            }
 
             String pktName = new String(Arrays.copyOfRange(packet.getData(), 0, 4), "UTF-8");
             if(pktName.contains("JOIN")){
@@ -57,7 +62,7 @@ public class TimSpik_AudioServer {
                 //send to everyone except the sender
                 if(address != addr){
                     if(VERBOSE){
-                        System.out.println("Sending packet to" + address);
+                        System.out.println("Sending packet to " + address);
                     }
                     //Relay packet to everyone
                     packet = new DatagramPacket(packet.getData(), packet.getLength(), address, port);
