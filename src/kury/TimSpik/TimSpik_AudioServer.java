@@ -58,15 +58,17 @@ public class TimSpik_AudioServer {
                 }
             }
 
-            for (InetAddress address: connectedUsers) {
-                //send to everyone except the sender
-                if(address != addr){
-                    if(VERBOSE){
-                        System.out.println("Sending packet to " + address);
+            if(connectedUsers.contains(addr) || pktName.contains(("QUIT"))){
+                for (InetAddress address: connectedUsers) {
+                    //send to everyone except the sender
+                    if(!address.equals(addr)){
+                        if(VERBOSE){
+                            System.out.println("Sending packet to " + address);
+                        }
+                        //Relay packet to everyone
+                        packet = new DatagramPacket(packet.getData(), packet.getLength(), address, port);
+                        soc.send(packet);
                     }
-                    //Relay packet to everyone
-                    packet = new DatagramPacket(packet.getData(), packet.getLength(), address, port);
-                    soc.send(packet);
                 }
             }
         }
