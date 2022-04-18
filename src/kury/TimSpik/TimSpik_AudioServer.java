@@ -12,6 +12,7 @@ public class TimSpik_AudioServer {
     private int port;
     private DatagramSocket soc;
     private boolean VERBOSE = false;
+    private boolean METRICS = false;
     private List<InetAddress> connectedUsers = new ArrayList<InetAddress>();
 
     public TimSpik_AudioServer(int port){
@@ -33,6 +34,8 @@ public class TimSpik_AudioServer {
             }
             
             soc.receive(packet);
+            long pckReceived = System.currentTimeMillis();
+
             InetAddress addr = packet.getAddress();
 
             if(VERBOSE){
@@ -58,6 +61,8 @@ public class TimSpik_AudioServer {
                 }
             }
 
+            //Performance metric
+            long start1 = System.currentTimeMillis();
             if(connectedUsers.contains(addr) || pktName.contains(("QUIT"))){
                 for (InetAddress address: connectedUsers) {
                     //send to everyone except the sender
@@ -70,6 +75,13 @@ public class TimSpik_AudioServer {
                         soc.send(packet);
                     }
                 }
+            }
+
+            //Print performance metric
+            long end1 = System.currentTimeMillis();
+            if(METRICS){
+                System.out.println("Packets re-sent in: " + (end1-start1) + "ms.");
+                System.out.println("From beginning to end: " + (end1-pckReceived) + "ms.");
             }
         }
     }
