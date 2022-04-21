@@ -1,9 +1,12 @@
 package kury.TimSpik;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -14,8 +17,10 @@ public class TimSpik_AudioServer {
     private boolean VERBOSE = false; //if true will print lots of information to console
     private boolean METRICS = false; //true to print how much time it takes to handle the packet to console
     private List<InetAddress> connectedUsers = new ArrayList<InetAddress>(); //List of addresses of all connected users
+    private List<String> userNicks = new ArrayList<String>();
     private ArrayList<Long> lastMillisecond = new ArrayList<Long>(); //List of all the last messages timestamps
     private int crashTreshold = 10000; //Milliseconds, if a client has not sent a packet in this amout of time consider them crashed
+    private ArrayList<Integer> toRemove = new ArrayList<Integer>(); //indexes of users that crashed and need to be removed
 
     public TimSpik_AudioServer(int port){
         this.port = port;
@@ -46,11 +51,15 @@ public class TimSpik_AudioServer {
             //Get address of sender
             InetAddress addr = packet.getAddress();
 
-            if(VERBOSE){
-                System.out.println("Packet received from " + addr);
-            }
             //Get packet type JOIN QUIT or KURY
             String pktName = new String(Arrays.copyOfRange(packet.getData(), 0, 4), "UTF-8");
+            String senderNick = new String(Arrays.copyOfRange(packet.getData(), 4, 20), "UTF-8");
+            senderNick.trim();
+
+            if(VERBOSE){
+                System.out.println("Packet received from " + addr + ", aka " + senderNick);
+            }
+
             if(pktName.contains("JOIN")){
                 //If packet is JOIN
                 if(VERBOSE){
@@ -59,6 +68,7 @@ public class TimSpik_AudioServer {
                 //Add user to the list if not already in it
                 if(!connectedUsers.contains(addr)){
                     connectedUsers.add(addr);
+                    userNicks.add(senderNick);
                     lastMillisecond.add(System.currentTimeMillis());
                 }
             } else if (pktName.contains("QUIT")){
@@ -68,7 +78,10 @@ public class TimSpik_AudioServer {
                 }
 
                 if(connectedUsers.contains(addr)){
+                    int index = connectedUsers.indexOf(addr);
                     connectedUsers.remove(addr);
+                    userNicks.remove(senderNick);
+                    lastMillisecond.remove(index);
                 }
             }
 
@@ -77,18 +90,59 @@ public class TimSpik_AudioServer {
 
             //Send packet only if in connectedUsers or if it is a QUIT
             if(connectedUsers.contains(addr) || pktName.contains(("QUIT"))){
+                int index = connectedUsers.indexOf(addr);
+                //update last message timestamp
+                if(index != -1) {
+                    lastMillisecond.set(index, System.currentTimeMillis());
+                }
+
                 for (InetAddress address: connectedUsers) {
-                    //send to everyone except the sender
-                    if(!address.equals(addr)){
-                        if(VERBOSE){
-                            System.out.println("Sending packet to " + address);
+                    index = connectedUsers.indexOf(address);
+                    //If user has not sent a packet in the last 'crashTreshold' ms
+                    //count it as crashed
+                    if(System.currentTimeMillis() - lastMillisecond.get(index) < crashTreshold){
+                        //send to everyone except the sender
+                        if(!address.equals(addr)){
+                            if(VERBOSE){
+                                System.out.println(System.currentTimeMillis() - lastMillisecond.get(index) + " : " + crashTreshold);
+                                System.out.println("Sending packet to " + address);
+                            }
+                            //Relay packet to everyone
+                            packet = new DatagramPacket(packet.getData(), packet.getLength(), address, port);
+                            soc.send(packet);
                         }
-                        //Relay packet to everyone
-                        packet = new DatagramPacket(packet.getData(), packet.getLength(), address, port);
-                        soc.send(packet);
+                    } else {
+                        toRemove.add(index);
                     }
                 }
             }
+
+            //remove crashed users
+            for (int usr:toRemove) {
+                String str = "QUIT"+userNicks.get(usr);
+                if(VERBOSE) {
+                    System.out.println("User crashed " + userNicks.get(usr));
+                }
+                //Update api
+                String strUrl = "https://timspik.ddns.net/setOnline/"+ userNicks.get(usr) + "/F";
+                if(VERBOSE){
+                    System.out.println(strUrl);
+                }
+                URL url = new URL(strUrl);
+                url.openConnection();
+
+                connectedUsers.remove(usr);
+                userNicks.remove(usr);
+                lastMillisecond.remove(usr);
+                for (InetAddress address: connectedUsers){
+                    //Notify clients
+                    packet = new DatagramPacket(str.getBytes(StandardCharsets.UTF_8), 20, address, port);
+                    soc.send(packet);
+                }
+            }
+
+            //Clear crashed users
+            toRemove.clear();
 
             //Print performance metric
             long end1 = System.currentTimeMillis();
