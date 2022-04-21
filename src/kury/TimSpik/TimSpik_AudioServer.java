@@ -2,10 +2,7 @@ package kury.TimSpik;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.URL;
+import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,10 +51,12 @@ public class TimSpik_AudioServer {
             //Get packet type JOIN QUIT or KURY
             String pktName = new String(Arrays.copyOfRange(packet.getData(), 0, 4), "UTF-8");
             String senderNick = new String(Arrays.copyOfRange(packet.getData(), 4, 20), "UTF-8");
-            senderNick.trim();
+            senderNick = senderNick.replaceAll("/t" , " ");
+            senderNick = senderNick.trim();
+
 
             if(VERBOSE){
-                System.out.println("Packet received from " + addr + ", aka " + senderNick);
+                System.out.println("Packet received from " + addr + ", aka " + senderNick + ".");
             }
 
             if(pktName.contains("JOIN")){
@@ -120,6 +119,10 @@ public class TimSpik_AudioServer {
             //remove crashed users
             for (int usr:toRemove) {
                 String str = "QUIT"+userNicks.get(usr);
+                for(int i = str.length(); i < 20; i++){
+                    str += '\t';
+                }
+
                 if(VERBOSE) {
                     System.out.println("User crashed " + userNicks.get(usr));
                 }
@@ -129,14 +132,22 @@ public class TimSpik_AudioServer {
                     System.out.println(strUrl);
                 }
                 URL url = new URL(strUrl);
-                url.openConnection();
+                HttpURLConnection http = (HttpURLConnection)url.openConnection();
+                http.setRequestProperty("Accept", "*/*");
+
+                int resCode = http.getResponseCode();
+                if (VERBOSE) {
+                    System.out.println("API returned " + resCode);
+                }
+
+                http.disconnect();
 
                 connectedUsers.remove(usr);
                 userNicks.remove(usr);
                 lastMillisecond.remove(usr);
                 for (InetAddress address: connectedUsers){
                     //Notify clients
-                    packet = new DatagramPacket(str.getBytes(StandardCharsets.UTF_8), 20, address, port);
+                    packet = new DatagramPacket(str.getBytes(StandardCharsets.UTF_8), str.length(), address, port);
                     soc.send(packet);
                 }
             }
